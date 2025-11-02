@@ -290,6 +290,7 @@ cron.schedule("* * * * *", async () => {
 });
 
 // --- Start server ---
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// ✅ IMPORTANT FIX for Render deployment:
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running and listening on port ${PORT}`);
 });
