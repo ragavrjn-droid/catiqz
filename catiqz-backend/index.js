@@ -13,15 +13,18 @@ const app = express();
 // ✅ Proper CORS setup for Render + Vercel
 const allowedOrigins = [
   "http://localhost:5173",              // local dev
-  "https://catiqz-frontend.vercel.app", // your Vercel frontend
+  "https://catiqz-frontend.vercel.app", // deployed frontend
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("CORS not allowed for this origin: " + origin));
+      // Allow server-side calls and whitelisted domains
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      console.warn("❌ CORS blocked for origin:", origin);
+      return callback(new Error("CORS not allowed for origin: " + origin));
     },
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -40,10 +43,10 @@ const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
 const ALPHA_KEY = process.env.ALPHAVANTAGE_API_KEY;
 const HF_KEY = process.env.HUGGINGFACE_API_KEY;
 
-// --- Helper functions ---
+// --- Utility Functions ---
 async function fetchRSS(rssUrl) {
   try {
-    const res = await axios.get(rssUrl);
+    const res = await axios.get(rssUrl, { timeout: 10000 });
     const parsed = await parseStringPromise(res.data, { trim: true, explicitArray: false });
     const items = parsed?.rss?.channel?.item;
     if (!items) return [];
@@ -54,16 +57,14 @@ async function fetchRSS(rssUrl) {
           pubDate: i.pubDate,
           description: i.description || i["media:description"] || "",
         }))
-      : [
-          {
-            title: items.title,
-            link: items.link,
-            pubDate: items.pubDate,
-            description: items.description || "",
-          },
-        ];
+      : [{
+          title: items.title,
+          link: items.link,
+          pubDate: items.pubDate,
+          description: items.description || "",
+        }];
   } catch (err) {
-    console.error("RSS parse error:", err.message);
+    console.error("❌ RSS parse error:", err.message);
     return [];
   }
 }
@@ -82,7 +83,7 @@ async function fetchFinnhubNews() {
         }))
       : [];
   } catch (err) {
-    console.error("finnhub news error:", err.message);
+    console.error("❌ Finnhub news error:", err.message);
     return [];
   }
 }
@@ -90,9 +91,7 @@ async function fetchFinnhubNews() {
 async function getAlphaQuote(symbol) {
   if (!ALPHA_KEY) return null;
   try {
-    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(
-      symbol
-    )}&apikey=${ALPHA_KEY}`;
+    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(symbol)}&apikey=${ALPHA_KEY}`;
     const r = await axios.get(url, { timeout: 8000 });
     const data = r.data?.["Global Quote"];
     if (!data) return null;
@@ -103,7 +102,7 @@ async function getAlphaQuote(symbol) {
       raw: data,
     };
   } catch (err) {
-    console.error("alpha quote error:", err.message);
+    console.error("❌ AlphaVantage error:", err.message);
     return null;
   }
 }
@@ -131,7 +130,7 @@ async function hfSummarize(text) {
       : r.data?.summary_text || (typeof r.data === "string" ? r.data : "");
     return { summary: out, model };
   } catch (err) {
-    console.error("HF summarization error:", err.message);
+    console.error("❌ HuggingFace summarization error:", err.message);
     return { summary: text?.slice(0, 300) || "", model: "error" };
   }
 }
@@ -153,15 +152,11 @@ async function saveEventToSupabase(eventObj) {
       provenance: eventObj.provenance || null,
       timestamp: eventObj.timestamp ? new Date(eventObj.timestamp) : new Date(),
     };
-    const { data, error } = await supabase.from("events").insert([payload]);
-    if (error) {
-      console.error("Supabase insert error:", error.message);
-      return null;
-    }
-    return data;
+    const { error } = await supabase.from("events").insert([payload]);
+    if (error) throw new Error(error.message);
+    console.log(`✅ Event saved: ${payload.title}`);
   } catch (err) {
-    console.error("saveEvent error:", err.message);
-    return null;
+    console.error("❌ Supabase insert error:", err.message);
   }
 }
 
@@ -172,10 +167,8 @@ app.get("/", (req, res) => {
 
 app.post("/api/fetch-live", async (req, res) => {
   try {
-    const googleIndia =
-      "https://news.google.com/rss/search?q=india+economy&hl=en-IN&gl=IN&ceid=IN:en";
-    const oilNews =
-      "https://news.google.com/rss/search?q=oil+price&hl=en-US&gl=US&ceid=US:en";
+    const googleIndia = "https://news.google.com/rss/search?q=india+economy&hl=en-IN&gl=IN&ceid=IN:en";
+    const oilNews = "https://news.google.com/rss/search?q=oil+price&hl=en-US&gl=US&ceid=US:en";
 
     const [rss1, rss2, finnhub] = await Promise.all([
       fetchRSS(googleIndia),
@@ -185,10 +178,9 @@ app.post("/api/fetch-live", async (req, res) => {
 
     let combined = [...rss1, ...rss2, ...finnhub];
     const seen = new Set();
-    combined = combined.filter((item) => {
+    combined = combined.filter(item => {
       const key = (item.link || item.title || "").trim();
-      if (!key) return false;
-      if (seen.has(key)) return false;
+      if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
     });
@@ -208,13 +200,12 @@ app.post("/api/fetch-live", async (req, res) => {
         timestamp: it.pubDate || new Date().toISOString(),
       };
       await saveEventToSupabase(eventObj);
-      console.log(`✅ Inserted: ${eventObj.title}`);
       processed.push(eventObj);
     }
 
     res.json({ success: true, inserted: processed.length });
   } catch (err) {
-    console.error("fetch-live error:", err.message);
+    console.error("❌ fetch-live error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -226,11 +217,11 @@ app.get("/api/events", async (req, res) => {
     if (impact) q = q.eq("impact_level", impact);
     if (since) q = q.gte("timestamp", new Date(since).toISOString());
     const { data, error } = await q;
-    if (error) return res.status(500).json({ error: error.message });
-    return res.json(data);
+    if (error) throw new Error(error.message);
+    res.json(data);
   } catch (err) {
-    console.error("events read error:", err.message);
-    return res.status(500).json({ error: err.message });
+    console.error("❌ /api/events error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -241,16 +232,14 @@ app.get("/api/stock/:ticker", async (req, res) => {
     if (quote) return res.json({ source: "alphavantage", quote });
     if (FINNHUB_KEY) {
       const fin = await axios.get(
-        `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(
-          ticker
-        )}&token=${FINNHUB_KEY}`
+        `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_KEY}`
       );
       return res.json({ source: "finnhub", quote: fin.data });
     }
     return res.status(404).json({ error: "No quote available" });
   } catch (err) {
-    console.error("stock error:", err.message);
-    return res.status(500).json({ error: err.message });
+    console.error("❌ /api/stock error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -259,38 +248,36 @@ app.post("/api/summary", async (req, res) => {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: "text required" });
     const out = await hfSummarize(text);
-    return res.json(out);
+    res.json(out);
   } catch (err) {
-    console.error("summary error:", err.message);
-    return res.status(500).json({ error: err.message });
+    console.error("❌ /api/summary error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// --- Cron jobs ---
+// --- Cron job trigger ---
 async function triggerFetch() {
   try {
-    console.log("🔄 Fetch triggered...");
     const BASE_URL = process.env.RENDER_EXTERNAL_URL || "https://catiqz-backend.onrender.com";
     const res = await fetch(`${BASE_URL}/api/fetch-live`, { method: "POST" });
     const data = await res.json();
-    console.log("✅ Fetch result:", data);
+    console.log("✅ Cron fetch result:", data);
   } catch (err) {
-    console.error("❌ Fetch error:", err.message);
+    console.error("❌ Cron fetch error:", err.message);
   }
 }
 
+// --- Initial and scheduled fetch ---
 (async () => {
-  console.log("🚀 Initial auto-fetch triggered at startup...");
+  console.log("🚀 Initial auto-fetch triggered...");
   await triggerFetch();
 })();
-
-cron.schedule("* * * * *", async () => {
-  console.log("⏰ Auto-fetch cron triggered (every 1 min)");
+cron.schedule("*/5 * * * *", async () => { // every 5 mins
+  console.log("⏰ Auto-fetch cron triggered");
   await triggerFetch();
 });
 
-// --- Start server ---
-// ✅ IMPORTANT FIX for Render deployment:
+// --- Start server --- ✅ Render fix
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running and listening on port ${PORT}`);
+  console.log(`✅ Server live on port ${PORT}`);
 });
