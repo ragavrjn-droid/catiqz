@@ -13,13 +13,12 @@ const app = express();
 // ✅ Proper CORS setup for Render + Vercel
 const allowedOrigins = [
   "http://localhost:5173",              // local dev
-  "https://catiqz-uglq.vercel.app", // deployed frontend
+  "https://catiqz-uglq.vercel.app",     // deployed frontend
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow server-side calls and whitelisted domains
       if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
@@ -255,6 +254,41 @@ app.post("/api/summary", async (req, res) => {
   }
 });
 
+
+// --- ✅ AUTH ROUTES (NEW) ---
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (email === "demo@catiqz.com" && password === "password") {
+      return res.json({
+        success: true,
+        token: "demo-token-12345",
+        user: { email, role: "admin" },
+      });
+    }
+
+    return res.status(401).json({ success: false, message: "Invalid credentials" });
+  } catch (err) {
+    console.error("❌ /api/auth/login error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    return res.json({
+      success: true,
+      message: `User registered: ${email}`,
+    });
+  } catch (err) {
+    console.error("❌ /api/auth/register error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // --- Cron job trigger ---
 async function triggerFetch() {
   try {
@@ -272,7 +306,7 @@ async function triggerFetch() {
   console.log("🚀 Initial auto-fetch triggered...");
   await triggerFetch();
 })();
-cron.schedule("*/5 * * * *", async () => { // every 5 mins
+cron.schedule("*/5 * * * *", async () => {
   console.log("⏰ Auto-fetch cron triggered");
   await triggerFetch();
 });
