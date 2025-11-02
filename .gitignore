@@ -1,0 +1,14 @@
+# Node and environment
+node_modules/
+.env
+
+# Build output
+dist/
+build/
+
+# Editor settings
+.vscode/
+
+# Logs and temp
+*.log
+.DS_Store
