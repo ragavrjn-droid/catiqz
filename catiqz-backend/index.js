@@ -13,7 +13,7 @@ const app = express();
 // ✅ Proper CORS setup for Render + Vercel
 const allowedOrigins = [
   "http://localhost:5173",              // local dev
-  "https://catiqz-frontend.vercel.app", // deployed frontend
+  "https://catiqz-uglq.vercel.app", // deployed frontend
 ];
 
 app.use(
