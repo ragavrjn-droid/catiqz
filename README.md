@@ -65,7 +65,7 @@ CatIQz is still a **work in progress**, but the core system is functional.
 
 Raghavendra Rajan  
 Builder | Trader | Tech Learner  
-🌐 [https://catiqz-ugIq.vercel.app](https://catiqz-ugIq.vercel.app)  
+🌐 [https://catiqz-ugIq.vercel.app](https://catiqz-ugIq.vercel.app/)  
 📫 https://www.linkedin.com/in/ragavrjn/
 
 ---
