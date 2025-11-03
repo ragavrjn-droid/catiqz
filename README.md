@@ -48,7 +48,7 @@ CatIQz is still a **work in progress**, but the core system is functional.
 - ⚙️ Improving accuracy, refresh rate, and data consistency  
 - 💡 Experimenting with correlation and trend detection  
 
-🔗 **Live Demo:** [https://catiqz-ugIq.vercel.app](https://catiqz-ugIq.vercel.app)
+🔗 **Live Demo:** [https://catiqz-ugIq.vercel.app/](https://catiqz-ugIq.vercel.app/)
 
 ---
 
@@ -65,7 +65,7 @@ CatIQz is still a **work in progress**, but the core system is functional.
 
 Raghavendra Rajan  
 Builder | Trader | Tech Learner  
-🌐 [https://catiqz-ugIq.vercel.app](https://catiqz-ugIq.vercel.app/)  
+🌐 [https://catiqz-ugIq.vercel.app/](https://catiqz-ugIq.vercel.app/)  
 📫 https://www.linkedin.com/in/ragavrjn/
 
 ---
